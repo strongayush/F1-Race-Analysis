@@ -10,7 +10,8 @@ import streamlit as st
 from data import load_session
 from charts import lap_time_chart, compare_drivers_chart, tyre_stint_chart, pit_stop_delta_chart
 
-st.set_page_config(page_title="F1 Race Analysis", page_icon="🏎️", layout="wide")
+st.set_page_config(page_title="F1 Race Analysis",
+                   page_icon="🏎️", layout="wide")
 
 st.title("🏎️ F1 Race Performance & Strategy Analysis")
 st.caption("2024 Abu Dhabi Grand Prix — Race")
@@ -24,9 +25,11 @@ YEAR = 2024
 EVENT = 'Abu Dhabi'
 SESSION_TYPE = 'R'
 
-@st.cache_data
+
+@st.cache_resource
 def get_session_cached():
     return load_session(YEAR, EVENT, SESSION_TYPE)
+
 
 with st.spinner("Loading session data..."):
     session = get_session_cached()
@@ -58,15 +61,18 @@ st.plotly_chart(lap_time_chart(session, main_driver), use_container_width=True)
 
 if compare_drivers:
     st.header("Lap Time Comparison")
-    st.plotly_chart(compare_drivers_chart(session, compare_drivers), use_container_width=True)
+    st.plotly_chart(compare_drivers_chart(
+        session, compare_drivers), use_container_width=True)
 else:
     st.info("Select at least one driver in the sidebar to see the comparison chart.")
 
 st.header(f"{main_driver} — Tyre Stint Timeline")
-st.plotly_chart(tyre_stint_chart(session, main_driver), use_container_width=True)
+st.plotly_chart(tyre_stint_chart(session, main_driver),
+                use_container_width=True)
 
 if compare_drivers:
     st.header("Pit Stop Laps by Driver")
-    st.plotly_chart(pit_stop_delta_chart(session, compare_drivers), use_container_width=True)
+    st.plotly_chart(pit_stop_delta_chart(
+        session, compare_drivers), use_container_width=True)
 else:
     st.info("Select at least one driver in the sidebar to see pit stop laps.")
