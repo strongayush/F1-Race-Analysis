@@ -9,7 +9,12 @@ Streamlit or charts.
 
 import fastf1
 import pandas as pd
+import os
 
+# Create the cache folder if it doesn't exist yet - locally you made
+# this by hand, but it's gitignored so it won't exist on a fresh
+# deploy (like Streamlit Cloud). This makes the app work either way.
+os.makedirs('cache', exist_ok=True)
 fastf1.Cache.enable_cache('cache')
 
 
