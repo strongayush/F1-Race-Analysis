@@ -1,87 +1,40 @@
 """
-Checkpoint 2: Clean, reusable data functions
-Goal: wrap raw FastF1 access into functions we can call from
-anywhere (charts.py, the Streamlit app) without repeating logic.
-
-Test this file on its own first (see bottom) before touching
-Streamlit or charts.
+Data functions for the deployed app. Reads from a pre-exported CSV
+(see export_data.py) instead of calling FastF1 live - this avoids
+depending on the hosting platform being able to reach FastF1's data
+servers at runtime.
 """
 
-import fastf1
-import pandas as pd
 import os
+import pandas as pd
 
-# Create the cache folder if it doesn't exist yet - locally you made
-# this by hand, but it's gitignored so it won't exist on a fresh
-# deploy (like Streamlit Cloud). This makes the app work either way.
-os.makedirs('cache', exist_ok=True)
-fastf1.Cache.enable_cache('cache')
+CSV_PATH = os.path.join('data_cache', 'abu_dhabi_2024_race_laps.csv')
 
 
-def load_session(year, event, session_type):
-    """
-    Loads and returns a FastF1 session object.
-    event can be a name ('Abu Dhabi') or round number.
-    session_type: 'FP1','FP2','FP3','Q','S','R'
-    """
-    session = fastf1.get_session(year, event, session_type)
-    session.load()
-    return session
+def load_laps_data():
+    """Loads the pre-exported laps CSV as a DataFrame."""
+    return pd.read_csv(CSV_PATH)
 
 
-def get_driver_laps(session, driver_code):
-    """
-    Returns a clean DataFrame of one driver's laps:
-    lap number, lap time (in seconds, not timedelta), compound, stint.
-    driver_code: 3-letter code, e.g. 'VER', 'HAM'
-    """
-    laps = session.laps.pick_drivers(driver_code).copy()
-
-    # Convert LapTime from timedelta to seconds (float) - much easier
-    # to plot and compare than raw timedelta objects
-    laps['LapTimeSeconds'] = laps['LapTime'].dt.total_seconds()
-
-    # Drop laps with no recorded time (in/out laps, red flags etc.)
-    laps = laps.dropna(subset=['LapTimeSeconds'])
-
-    return laps[['LapNumber', 'LapTimeSeconds', 'Compound', 'Stint', 'Driver']]
+def get_driver_laps(laps_df, driver_code):
+    """One driver's laps: lap number, lap time (seconds), compound, stint."""
+    driver_laps = laps_df[laps_df['Driver'] == driver_code]
+    return driver_laps[['LapNumber', 'LapTimeSeconds', 'Compound', 'Stint', 'Driver']]
 
 
-def get_all_drivers_laps(session):
-    """
-    Returns cleaned lap data for every driver in the session at once.
-    Useful for comparison charts across drivers.
-    """
-    laps = session.laps.copy()
-    laps['LapTimeSeconds'] = laps['LapTime'].dt.total_seconds()
-    laps = laps.dropna(subset=['LapTimeSeconds'])
-    return laps[['Driver', 'LapNumber', 'LapTimeSeconds', 'Compound', 'Stint']]
+def get_pit_stops(laps_df, driver_code):
+    """Laps where the driver entered or exited the pits."""
+    driver_laps = laps_df[laps_df['Driver'] == driver_code]
+    pit_laps = driver_laps[driver_laps['IsPitIn'] | driver_laps['IsPitOut']]
+    return pit_laps[['LapNumber', 'IsPitIn', 'IsPitOut', 'Compound', 'Stint']]
 
 
-def get_pit_stops(session, driver_code):
-    """
-    Returns pit stop laps for a driver: the lap number where they pitted
-    and how long the stop took (PitInTime -> PitOutTime gap).
-    """
-    laps = session.laps.pick_drivers(driver_code).copy()
-
-    # A pit stop lap has a recorded PitInTime or PitOutTime
-    pit_laps = laps[laps['PitInTime'].notna(
-    ) | laps['PitOutTime'].notna()].copy()
-
-    return pit_laps[['LapNumber', 'PitInTime', 'PitOutTime', 'Compound', 'Stint']]
-
-
-def get_tyre_stints(session, driver_code):
-    """
-    Returns a summary of each stint: which compound, start lap, end lap,
-    and how many laps it lasted. Good for a stint timeline chart.
-    """
-    laps = session.laps.pick_drivers(driver_code).copy()
-    laps = laps.dropna(subset=['LapNumber'])
+def get_tyre_stints(laps_df, driver_code):
+    """Summary of each tyre stint: compound, start lap, end lap, length."""
+    driver_laps = laps_df[laps_df['Driver'] == driver_code]
 
     stints = (
-        laps.groupby('Stint')
+        driver_laps.groupby('Stint')
         .agg(
             Compound=('Compound', 'first'),
             StartLap=('LapNumber', 'min'),
@@ -92,20 +45,3 @@ def get_tyre_stints(session, driver_code):
     stints['StintLength'] = stints['EndLap'] - stints['StartLap'] + 1
 
     return stints
-
-
-if __name__ == '__main__':
-    # Quick manual test - run this file directly with:
-    #   python data.py
-    # to confirm each function works before building charts on top of them.
-
-    session = load_session(2024, 'Abu Dhabi', 'R')
-
-    print("\n--- get_driver_laps('VER') ---")
-    print(get_driver_laps(session, 'VER').head())
-
-    print("\n--- get_pit_stops('VER') ---")
-    print(get_pit_stops(session, 'VER'))
-
-    print("\n--- get_tyre_stints('VER') ---")
-    print(get_tyre_stints(session, 'VER'))

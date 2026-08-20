@@ -1,21 +1,17 @@
 """
-Checkpoint 3: Static charts (still no Streamlit)
-Goal: get the actual visualizations looking right, using hardcoded
-inputs. Once these look good, Checkpoint 4 just wraps them in Streamlit.
+Chart builders. Take a laps DataFrame (from data.py's load_laps_data)
+instead of a live FastF1 session - the deployed app no longer talks
+to FastF1 at runtime.
 """
 
 import plotly.graph_objects as go
-import plotly.express as px
 
-from data import load_session, get_driver_laps, get_all_drivers_laps, get_tyre_stints, get_pit_stops
+from data import get_driver_laps, get_pit_stops, get_tyre_stints
 
 
-def lap_time_chart(session, driver_code):
-    """
-    Line chart: lap number vs lap time for one driver.
-    Shows pace evolution and any spikes (traffic, pit laps, etc.)
-    """
-    laps = get_driver_laps(session, driver_code)
+def lap_time_chart(laps_df, driver_code):
+    """Line chart: lap number vs lap time for one driver."""
+    laps = get_driver_laps(laps_df, driver_code)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -32,15 +28,12 @@ def lap_time_chart(session, driver_code):
     return fig
 
 
-def compare_drivers_chart(session, driver_codes):
-    """
-    Line chart comparing lap times across multiple drivers.
-    driver_codes: list like ['VER', 'HAM', 'LEC']
-    """
+def compare_drivers_chart(laps_df, driver_codes):
+    """Line chart comparing lap times across multiple drivers."""
     fig = go.Figure()
 
     for code in driver_codes:
-        laps = get_driver_laps(session, code)
+        laps = get_driver_laps(laps_df, code)
         fig.add_trace(go.Scatter(
             x=laps['LapNumber'],
             y=laps['LapTimeSeconds'],
@@ -56,14 +49,10 @@ def compare_drivers_chart(session, driver_codes):
     return fig
 
 
-def tyre_stint_chart(session, driver_code):
-    """
-    Horizontal bar chart showing each tyre stint as a colored block
-    across the lap range it covered.
-    """
-    stints = get_tyre_stints(session, driver_code)
+def tyre_stint_chart(laps_df, driver_code):
+    """Horizontal bar chart showing each tyre stint as a colored block."""
+    stints = get_tyre_stints(laps_df, driver_code)
 
-    # Rough but recognizable F1 tyre colors
     compound_colors = {
         'SOFT': '#DA291C',
         'MEDIUM': '#FFD700',
@@ -95,21 +84,13 @@ def tyre_stint_chart(session, driver_code):
     return fig
 
 
-def pit_stop_delta_chart(session, driver_codes):
-    """
-    Scatter chart: one marker per actual pit stop, at the lap the
-    driver entered the pits. Useful for spotting undercut/overcut
-    strategy battles (who pitted first, who reacted).
-    """
+def pit_stop_delta_chart(laps_df, driver_codes):
+    """Scatter chart: one marker per actual pit stop (the pit-in lap)."""
     fig = go.Figure()
 
     for code in driver_codes:
-        pits = get_pit_stops(session, code)
-
-        # get_pit_stops returns a row for PitInTime AND a separate row
-        # for PitOutTime - keep only the "pit in" lap so each real
-        # stop counts once, not twice.
-        pit_in_laps = pits[pits['PitInTime'].notna()]['LapNumber']
+        pits = get_pit_stops(laps_df, code)
+        pit_in_laps = pits[pits['IsPitIn']]['LapNumber']
 
         fig.add_trace(go.Scatter(
             x=[code] * len(pit_in_laps),
@@ -126,29 +107,3 @@ def pit_stop_delta_chart(session, driver_codes):
         showlegend=False,
     )
     return fig
-
-
-if __name__ == '__main__':
-    # Hardcoded test - Verstappen vs a couple of rivals from the same race
-    session = load_session(2024, 'Abu Dhabi', 'R')
-
-    drivers_to_compare = ['VER', 'NOR', 'LEC']
-
-    fig1 = lap_time_chart(session, 'VER')
-    fig1.write_html('chart1_lap_times_VER.html')
-
-    fig2 = compare_drivers_chart(session, drivers_to_compare)
-    fig2.write_html('chart2_comparison.html')
-
-    fig3 = tyre_stint_chart(session, 'VER')
-    fig3.write_html('chart3_tyre_stints_VER.html')
-
-    fig4 = pit_stop_delta_chart(session, drivers_to_compare)
-    fig4.write_html('chart4_pit_stops.html')
-
-    print("Done! 4 HTML files written to your project folder.")
-    print("Open each one in your browser to check how it looks:")
-    print(" - chart1_lap_times_VER.html")
-    print(" - chart2_comparison.html")
-    print(" - chart3_tyre_stints_VER.html")
-    print(" - chart4_pit_stops.html")
